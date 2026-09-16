@@ -831,6 +831,32 @@ body.lb-dragging-files .lb-drop-zone{outline:1.5px dashed rgba(13,92,92,.55)!imp
 #boards-wrap[data-gen="card"] .bd-add-cell{align-self:start;}
 #boards-wrap .bd-card-cell .bd-slot:hover{outline-color:transparent;}
 #boards-wrap .bd-card-cell .bd-slot:hover .bd-ph{border-color:#0d5c5c;}
+/* ==================== v8 — 라이프스타일 화면의 보드 사진 (듀베티카) ==================== */
+#page-lookbook .cat-split.url .cards,#page-lookbook .cat-split.hol .cards,#page-lookbook .cat-split.lux .cards{background:#edecef;}
+#page-lookbook .bd-life-preview{display:contents;}
+#page-lookbook .lk-card{cursor:pointer;position:relative;}
+#page-lookbook .lk-frame{aspect-ratio:295/362;background:#edecef;overflow:hidden;border-radius:8px;position:relative;display:flex;align-items:center;justify-content:center;}
+#page-lookbook .lk-frame img{width:100%;height:100%;object-fit:contain;transition:transform .4s ease;}
+#page-lookbook .lk-card:hover .lk-frame img{transform:scale(1.03);}
+#page-lookbook .lk-idx{position:absolute;top:9px;left:9px;font-family:'Bodoni Moda',serif;font-size:12px;font-weight:700;color:#fff;background:rgba(17,17,17,.55);padding:2px 8px;border-radius:5px;z-index:2;}
+#page-lookbook .lk-hint{position:absolute;right:9px;bottom:9px;z-index:2;font-size:10px;font-weight:700;color:#0d5c5c;background:rgba(255,255,255,.94);border-radius:999px;padding:4px 10px;opacity:0;transition:opacity .15s;}
+#page-lookbook .lk-card:hover .lk-hint,#page-lookbook .lk-card:focus-within .lk-hint{opacity:1;}
+#page-lookbook .lk-info{padding-top:11px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+#page-lookbook .lk-name{font-size:12px;font-weight:700;line-height:1.3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#page-lookbook .lk-tag{font-size:9.5px;color:var(--mute);white-space:nowrap;}
+#page-lookbook .lk-empty{grid-column:1 / -1;min-height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;border:1.5px dashed #cfcbd3;border-radius:10px;padding:32px;}
+#page-lookbook .lk-empty p{font-size:13px;line-height:1.7;color:var(--mute);margin:0;}
+#page-lookbook .lk-empty-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+#page-lookbook .lk-empty-actions button{font-size:11px;font-weight:700;padding:8px 16px;border-radius:999px;border:1px solid #0d5c5c;background:#0d5c5c;color:#fff;cursor:pointer;}
+#page-lookbook .lk-empty-actions button.ghost{background:#fff;color:var(--ink);border-color:var(--line);}
+#page-lookbook .lk-empty-actions button:hover{filter:brightness(1.08);}
+#lb-common-preview{padding:26px 40px 30px;background:#f4f3f5;border-bottom:1px solid var(--line);}
+#lb-common-preview .lk-common-head{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+#lb-common-preview h3{font-family:'Bodoni Moda',serif;font-style:italic;font-size:26px;font-weight:600;margin:0;}
+#lb-common-preview p{font-size:12px;color:var(--mute);margin:0;}
+#lb-common-preview .lk-common-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;}
+@media(max-width:1180px){#lb-common-preview .lk-common-grid{grid-template-columns:repeat(4,1fr);}}
+@media(max-width:700px){#lb-common-preview{padding:20px 16px;} #lb-common-preview .lk-common-grid{grid-template-columns:repeat(2,1fr);}}
 </style><style id="lb-v5-style">/* ==================== v5 — 저장소 폴더 저장 바 ==================== */
 #lb-sync{display:flex;align-items:center;gap:7px;flex-shrink:0;margin-left:16px;min-width:0;}
 #lb-sync .lbs-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);flex-shrink:0;transition:background .2s;}
@@ -2280,7 +2306,7 @@ function ecDrop(e, catId){
   function captureSeason(season){
     var layout = document.getElementById('lookbook-layout');
     store()[season] = {
-      lookbook: layout ? layout.innerHTML : '',
+      lookbook: layout ? cleanInner(layout, '.bd-life-preview') : '',
       hero: cleanInner(document.getElementById('hero-slides'), null),
       trio: cleanInner(document.querySelector('.hero-trio-imgs'), '.trio-add-tile')
     };
@@ -2922,12 +2948,14 @@ function ecDrop(e, catId){
     var wrap=document.getElementById('boards-wrap'); if(wrap) wrap.style.display='block';
     qa('#lb-board-tabrow .bd-tab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-board')===currentType); });
     qa('#lb-filter-tabs .lb-ftab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-filter')===curLife); });
+    var cp=document.getElementById('lb-common-preview'); if(cp) cp.style.display='none';
   }
   function showLifestyle(){
     boardActive = false;
     var wrap=document.getElementById('boards-wrap'); if(wrap) wrap.style.display='none';
     var layout=document.getElementById('lookbook-layout'); if(layout) layout.style.display='';
     qa('#lb-board-tabrow .bd-tab').forEach(function(b){ b.classList.remove('active'); });
+    try{ renderLifePreviews(); }catch(e){ console.warn('preview', e); }
   }
   // measure real header heights so the sticky lifestyle panel sits BELOW the added board-tab row (대표 이미지 안 잘리게)
   function adjustPanelSticky(){
@@ -2961,6 +2989,103 @@ function ecDrop(e, catId){
     if(window.lbBindAllCards) window.lbBindAllCards();
   }
 
+  /* ───────── v8 — 라이프스타일 화면에 가먼트 보드 사진 표시 (듀베티카) ─────────
+     보드에 넣은 사진을 해당 라이프의 룩 카드 영역에 MLB 룩 카드 모양으로 보여줌.
+     화면 표시용이라 룩북 데이터에는 저장되지 않음(편집은 보드에서). '전체'로 넣은 사진은 전체 탭 맨 위에 표시 */
+  var PREVIEW_BRANDS = ['DUVETICA'];
+  var TYPE_FILTER = { outerwear:'outerwear', top:'top', bottom:'bottom', set:'sets', dress:'dress', shoes:'shoes', acc:'acc' };
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function boardItems(brand, season, life){
+    var sb = migrateSeasonBoards((BS[brand]&&BS[brand][season])||{});
+    var out = [];
+    brandBoards(brand).forEach(function(t){
+      var d = sb[life] && sb[life][t];
+      if(!d || typeof d.rows!=='string' || d.rows.indexOf('bd-cell')<0) return;
+      var box = document.createElement('template'); box.innerHTML = rowsFor(brand, t, d.rows);
+      Array.prototype.forEach.call(box.content.querySelectorAll('.bd-row'), function(row){
+        var rt = row.querySelector('.bd-row-title'); var rtitle = rt ? rt.textContent.trim() : '';
+        if(rtitle==='ROW TITLE') rtitle = '';
+        Array.prototype.forEach.call(row.querySelectorAll('.bd-cell'), function(cell){
+          var look = cell.querySelector('.bd-look-img'), combo = cell.querySelector('.bd-combo-img');
+          var src = (look&&look.getAttribute('src')) || (combo&&combo.getAttribute('src')) || '';
+          if(!src) return;
+          var cap = cell.querySelector('.bd-cap');
+          out.push({ type:t, src:src, name:(cap&&cap.textContent.trim())||rtitle, label:(d.title||BCFG[t].label) });
+        });
+      });
+    });
+    return out;
+  }
+  function lkCardHTML(it, life, no){
+    return '<div class="lk-card" data-types="'+esc(TYPE_FILTER[it.type]||it.type)+'" onclick="bdEditScope(\''+life+'\',\''+it.type+'\')" title="가먼트 보드에서 편집">'+
+      '<div class="lk-frame"><div class="lk-idx">'+pad2(no)+'</div><img src="'+esc(it.src)+'" alt="'+esc(it.name||it.label)+'"><span class="lk-hint">보드에서 편집</span></div>'+
+      '<div class="lk-info"><div class="lk-name">'+esc(it.name||it.label)+'</div><div class="lk-tag">'+esc(it.label)+'</div></div>'+
+    '</div>';
+  }
+  function directCount(cards){ return cards.querySelectorAll(':scope > .card:not(.card-add)').length; }
+  function renumberPreview(life){
+    var cards = document.querySelector('#lookbook-layout .cat-split.'+life+' .cards'); if(!cards) return;
+    var wrap = cards.querySelector(':scope > .bd-life-preview'); if(!wrap) return;
+    if(wrap !== cards.lastElementChild) cards.appendChild(wrap);   // 직접 넣은 룩 뒤에 오도록
+    var n = directCount(cards);
+    Array.prototype.forEach.call(wrap.querySelectorAll('.lk-idx'), function(e, i){ e.textContent = pad2(n+i+1); });
+    var empty = wrap.querySelector('.lk-empty'); if(empty && n) wrap.remove();
+  }
+  function renderLifePreviews(){
+    qa('#lookbook-layout .bd-life-preview').forEach(function(e){ e.remove(); });
+    var brand = getBrand(), season = getSeason();
+    var common = document.getElementById('lb-common-preview');
+    if(PREVIEW_BRANDS.indexOf(brand)<0){ if(common) common.style.display='none'; return; }
+    brandLifeKeys().forEach(function(life){
+      var cards = document.querySelector('#lookbook-layout .cat-split.'+life+' .cards'); if(!cards) return;
+      var items = boardItems(brand, season, life);
+      var n = directCount(cards);
+      if(!items.length && n) return;
+      var wrap = document.createElement('div'); wrap.className = 'bd-life-preview';
+      if(items.length){
+        wrap.innerHTML = items.map(function(it, i){ return lkCardHTML(it, life, n+i+1); }).join('');
+      } else {
+        wrap.innerHTML = '<div class="lk-empty"><p>'+esc(lifeLabel(life))+'에 아직 룩이 없어요.<br>가먼트 보드에 사진을 넣거나 룩을 직접 추가하면 여기에 보여요.</p>'+
+          '<div class="lk-empty-actions">'+
+            '<button type="button" onclick="bdEditScope(\''+life+'\',\'outerwear\')">가먼트 보드 열기</button>'+
+            '<button type="button" class="ghost" onclick="document.getElementById(\'upload-'+life+'\').click()">＋ 룩 직접 추가</button>'+
+          '</div></div>';
+      }
+      cards.appendChild(wrap);
+    });
+    // '전체'(라이프 미지정)로 넣은 보드 사진
+    var allItems = boardItems(brand, season, 'all');
+    var show = !boardActive && curLife==='all' && allItems.length>0;
+    if(!show){ if(common) common.style.display='none'; return; }
+    if(!common){
+      var layout = document.getElementById('lookbook-layout'); if(!layout) return;
+      common = document.createElement('section'); common.id = 'lb-common-preview';
+      layout.parentNode.insertBefore(common, layout);
+    }
+    common.innerHTML =
+      '<div class="lk-common-head"><h3>라이프 미지정</h3><p>가먼트 보드에서 <b>전체</b>를 선택한 채 넣은 사진이에요. 라이프 탭을 먼저 고르고 보드에 넣으면 그 라이프에 표시돼요.</p></div>'+
+      '<div class="lk-common-grid">'+allItems.map(function(it, i){ return lkCardHTML(it, 'all', i+1); }).join('')+'</div>';
+    common.style.display = '';
+  }
+  window.lbRenderLifePreviews = renderLifePreviews;
+  var _renumberCards = window.renumberCards;
+  if(typeof _renumberCards === 'function'){
+    window.renumberCards = function(cat){
+      var r = _renumberCards.apply(this, arguments);
+      try{ if(PREVIEW_BRANDS.indexOf(getBrand())>=0) renumberPreview(cat); }catch(e){}
+      return r;
+    };
+  }
+  var _filterCards = window.filterCards;
+  window.filterCards = function(cat, type, chip){
+    var r = _filterCards ? _filterCards.apply(this, arguments) : undefined;
+    qa('.cat-split.'+cat+' .cards .lk-card').forEach(function(card){
+      var show = (type==='all') || card.getAttribute('data-types')===type;
+      card.style.display = show ? '' : 'none';
+    });
+    return r;
+  };
+
   /* ───────── wrap v2 season / brand / filter / export ───────── */
   var _switch = window.switchSeason;
   window.switchSeason = function(season){
@@ -2970,7 +3095,7 @@ function ecDrop(e, catId){
     captureBoard();
     if(_switch) _switch(season);
     renderBoard();
-    if(wasBoard) showBoards();
+    if(wasBoard) showBoards(); else { try{ renderLifePreviews(); }catch(e){} }
   };
   var _switchBrand = window.switchBrand;
   window.switchBrand = function(brand){
@@ -3004,7 +3129,7 @@ function ecDrop(e, catId){
     var layout=document.getElementById('lookbook-layout');
     var life=document.createElement('div'); life.innerHTML = layout?layout.innerHTML:'';
     life.querySelectorAll('.cat-split').forEach(function(e){ e.style.display=''; }); // 필터로 숨은 카테고리도 전부 보이게
-    life.querySelectorAll('.card-del,.tag-add-btn,.card-type-btn,.card-add,.panel-img-edit,.card-drag,.trio-add-tile,.view-hint,.panel-filters,.lb-add-btn').forEach(function(e){ e.remove(); });
+    life.querySelectorAll('.bd-life-preview,.card-del,.tag-add-btn,.card-type-btn,.card-add,.panel-img-edit,.card-drag,.trio-add-tile,.view-hint,.panel-filters,.lb-add-btn').forEach(function(e){ e.remove(); });
     life.querySelectorAll('[onclick]').forEach(function(e){ e.removeAttribute('onclick'); });
     life.querySelectorAll('[contenteditable]').forEach(function(e){ e.removeAttribute('contenteditable'); });
     life.querySelectorAll('input,.bd-swap,.panel-img-edit,.card-num-edit').forEach(function(e){ e.remove(); });
@@ -3166,6 +3291,7 @@ function ecDrop(e, catId){
         }); }
     }); }
     renderBoard();
+    if(!boardActive){ try{ renderLifePreviews(); }catch(e){} }
   };
 
   /* ───────── make the numbered box (.idx) a drag handle for reordering looks ───────── */
@@ -3971,15 +4097,17 @@ function ecDrop(e, catId){
         var r = oc.apply(this, arguments);
         restoreTitle();
         if(b && b.rest.length){
-          var first = b.wrap.lastElementChild;
-          if(first && first.classList.contains('card')){
+          var own = b.wrap.querySelectorAll(':scope > .card:not(.card-add)');
+          var first = own[own.length - 1];
+          if(first){
             readAll(b.rest).then(function(srcs){
+              var prev = first;
               srcs.forEach(function(src){
                 if(!src) return;
                 var c = first.cloneNode(true);
                 var im = c.querySelector('.frame img'); if(im) im.setAttribute('src', src);
                 Array.prototype.forEach.call(c.querySelectorAll('.tag-pill'), function(t){ t.remove(); });
-                b.wrap.appendChild(c);
+                prev.after(c); prev = c;
                 if(window.makeCardSortable) window.makeCardSortable(c);
               });
               if(window.renumberCards) window.renumberCards(b.cat);
