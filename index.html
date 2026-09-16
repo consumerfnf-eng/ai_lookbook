@@ -793,6 +793,20 @@ body{font-family:'Inter',sans-serif;background:#fcfbf8;color:#111}
 #boards-wrap .bd-agg-rows .bd-row-head{padding:6px 40px 4px;}
 #boards-wrap .bd-agg-rows .bd-cell{pointer-events:none;} /* 미리보기(편집은 각 라이프 탭에서) */
 #boards-wrap .bd-agg-rows .bd-cell img{cursor:default;}
+</style><style id="lb-v6-style">/* ==================== v6 — 사진 끌어다 놓기 ==================== */
+body.lb-dragging-files .lb-drop-zone{outline:1.5px dashed rgba(13,92,92,.55)!important;outline-offset:-3px!important;}
+.lb-drop-on{outline:2.5px solid #0d5c5c!important;outline-offset:-3px!important;}
+#boards-wrap .bd-row.lb-drop-on{position:relative;border-radius:10px;}
+#page-lookbook .panel-photo.lb-drop-on::after,
+#page-lookbook .cards.lb-drop-on::after,
+#page-main .hero.lb-drop-on::after,
+#page-main .hero-trio-imgs.lb-drop-on::after,
+#boards-wrap .bd-slot.lb-drop-on::after,
+#boards-wrap .bd-shoe.lb-drop-on::after,
+#boards-wrap .bd-row.lb-drop-on::after{content:"";position:absolute;inset:0;background:rgba(13,92,92,.14);pointer-events:none;z-index:40;}
+#lb-drop-tip{position:fixed;left:0;top:0;z-index:100000;display:none;pointer-events:none;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;letter-spacing:.01em;color:#fff;background:#0d5c5c;padding:7px 12px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.22);white-space:nowrap;will-change:transform;}
+#lb-drop-tip.no{background:#3a3a3a;color:rgba(255,255,255,.85);}
+@media (prefers-reduced-motion:no-preference){.lb-drop-on{transition:outline-color .12s;}}
 </style><style id="lb-v5-style">/* ==================== v5 — 저장소 폴더 저장 바 ==================== */
 #lb-sync{display:flex;align-items:center;gap:7px;flex-shrink:0;margin-left:16px;min-width:0;}
 #lb-sync .lbs-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);flex-shrink:0;transition:background .2s;}
@@ -3757,5 +3771,235 @@ function ecDrop(e, catId){
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+})();
+</script><script id="lb-v6-script">/* ==================== v6 — 사진 끌어다 놓기 ====================
+   클릭 업로드는 그대로 두고, 같은 칸에 사진 파일을 끌어다 놓아도 올라가게 함.
+   놓는 위치 → 기존 업로드 입력칸에 파일을 넣고 change 이벤트를 보내 원래 처리 함수를 그대로 사용 */
+(function(){
+  if(window.__lbV6Loaded) return; window.__lbV6Loaded = true;
+
+  function toast(t, warn){ if(window.lbShowIndicator) window.lbShowIndicator(t, !!warn); }
+  function vis(el){ return !!(el && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden'); }
+  function isFileDrag(e){
+    var t = e.dataTransfer && e.dataTransfer.types;
+    return !!t && Array.prototype.indexOf.call(t, 'Files') >= 0;
+  }
+  function imagesOf(list){
+    return Array.prototype.filter.call(list || [], function(f){ return /^image\//.test(f.type); });
+  }
+  function feed(input, files){
+    if(!input || !files.length) return false;
+    var dt = new DataTransfer();
+    files.forEach(function(f){ dt.items.add(f); });
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles:true }));
+    return true;
+  }
+
+  /* ───────── 놓을 수 있는 위치 정의 (구체적인 것부터) ───────── */
+  var ZONES = [
+    { // 보드: 착장샷 칸
+      sel:'#boards-wrap .bd-look', label:'착장샷 넣기', single:true,
+      input:function(z){ return z.querySelector('input[type="file"]'); }
+    },
+    { // 보드: 제품샷 칸
+      sel:'#boards-wrap .bd-combo', label:'제품샷 넣기', single:true,
+      ok:function(z){ return !z.classList.contains('busy'); },
+      input:function(z){ return z.querySelector('input[type="file"]'); }
+    },
+    { // 보드: AI 생성용 제품 사진 칸
+      sel:'#boards-wrap .bd-shoe', label:'AI 생성용 제품 사진 넣기', single:true,
+      input:function(z){ return z.querySelector('input[type="file"]'); }
+    },
+    { // 보드: 행 전체 → 빈 착장샷 칸부터 채우고, 모자라면 칸 추가
+      sel:'#boards-wrap .bd-row', label:'착장샷으로 칸 추가',
+      run:function(z, files){
+        var empties = Array.prototype.filter.call(z.querySelectorAll('.bd-cell .bd-look'), function(s){
+          var im = s.querySelector('img'); return !(im && im.getAttribute('src'));
+        });
+        var addBtn = z.querySelector('.bd-add-cell');
+        var n = 0;
+        files.forEach(function(f){
+          var slot = empties.shift();
+          if(!slot && addBtn && window.bdAddCell){
+            window.bdAddCell(addBtn);
+            var cell = addBtn.previousElementSibling;
+            slot = cell && cell.querySelector('.bd-look');
+          }
+          if(slot && feed(slot.querySelector('input[type="file"]'), [f])) n++;
+        });
+        return n;
+      }
+    },
+    { // 룩북: 카테고리 대표 사진
+      sel:'#page-lookbook .panel-photo', label:'대표 사진 바꾸기', single:true,
+      input:function(z){ return z.querySelector('input[type="file"]'); }
+    },
+    { // 룩북: 룩 카드 영역 → 룩 추가
+      sel:'#page-lookbook .cat-split .cards', label:'룩 추가',
+      run:function(z, files){ return addLooks(z, files); }
+    },
+    { // 메인: 히어로 슬라이드
+      sel:'#page-main .hero', label:'메인 사진 추가',
+      input:function(){ return document.getElementById('hero-upload'); }
+    },
+    { // 메인: 트리오
+      sel:'#page-main .hero-trio-imgs', label:'사진 추가',
+      input:function(z){ return z.querySelector('.trio-add-tile input[type="file"]'); }
+    }
+  ];
+
+  function zoneAt(target){
+    for(var i=0; i<ZONES.length; i++){
+      var z = target && target.closest ? target.closest(ZONES[i].sel) : null;
+      if(z && vis(z) && (!ZONES[i].ok || ZONES[i].ok(z))) return { el:z, def:ZONES[i] };
+    }
+    return null;
+  }
+
+  /* ───────── 룩 여러 장 추가: 종류 선택은 한 번, 모든 사진에 적용 ───────── */
+  var batch = null;
+  function catOf(cardsEl){
+    var sec = cardsEl.closest('.cat-split'); if(!sec) return null;
+    var m = /(?:^|\s)s-([a-z]+)$/.exec(' ' + (sec.id || ''));
+    return m ? m[1] : null;
+  }
+  function addLooks(cardsEl, files){
+    var cat = catOf(cardsEl);
+    var input = cat && document.getElementById('upload-' + cat);
+    if(!input) return 0;
+    var rest = files.slice(1);
+    batch = rest.length ? { cat:cat, wrap:cardsEl, rest:rest } : null;
+    feed(input, [files[0]]);
+    if(rest.length){
+      var tries = 0;
+      (function setTitle(){
+        var m = document.getElementById('type-modal');
+        var t = m && m.classList.contains('open') && m.querySelector('.tm-title');
+        if(!t){ if(++tries < 60) setTimeout(setTitle, 50); return; }
+        if(!t.getAttribute('data-orig')) t.setAttribute('data-orig', t.innerHTML);
+        t.innerHTML = '아이템 종류 선택 <span>사진 ' + files.length + '장에 모두 적용돼요</span>';
+      })();
+    }
+    return files.length;
+  }
+  function restoreTitle(){
+    var t = document.querySelector('#type-modal .tm-title');
+    if(t && t.getAttribute('data-orig')){ t.innerHTML = t.getAttribute('data-orig'); t.removeAttribute('data-orig'); }
+  }
+  function readAll(files){
+    return Promise.all(files.map(function(f){
+      return new Promise(function(res){ var r = new FileReader(); r.onload = function(){ res(r.result); }; r.onerror = function(){ res(null); }; r.readAsDataURL(f); });
+    }));
+  }
+  function wrapModal(){
+    var oc = window.confirmTypeModal, cl = window.closeTypeModal;
+    if(oc && !oc.__v6){
+      var c2 = function(){
+        var b = batch; batch = null;
+        var r = oc.apply(this, arguments);
+        restoreTitle();
+        if(b && b.rest.length){
+          var first = b.wrap.lastElementChild;
+          if(first && first.classList.contains('card')){
+            readAll(b.rest).then(function(srcs){
+              srcs.forEach(function(src){
+                if(!src) return;
+                var c = first.cloneNode(true);
+                var im = c.querySelector('.frame img'); if(im) im.setAttribute('src', src);
+                Array.prototype.forEach.call(c.querySelectorAll('.tag-pill'), function(t){ t.remove(); });
+                b.wrap.appendChild(c);
+                if(window.makeCardSortable) window.makeCardSortable(c);
+              });
+              if(window.renumberCards) window.renumberCards(b.cat);
+              if(window.lbSyncRefresh) window.lbSyncRefresh();
+              toast('룩 ' + (srcs.length + 1) + '장을 추가했어요');
+            });
+          }
+        }
+        return r;
+      };
+      c2.__v6 = true; window.confirmTypeModal = c2;
+    }
+    if(cl && !cl.__v6){
+      var l2 = function(){ batch = null; restoreTitle(); return cl.apply(this, arguments); };
+      l2.__v6 = true; window.closeTypeModal = l2;
+    }
+  }
+
+  /* ───────── 드래그 표시 ───────── */
+  var active = null, depth = 0, tip = null;
+  function ensureTip(){
+    if(tip) return tip;
+    tip = document.createElement('div'); tip.id = 'lb-drop-tip'; tip.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(tip);
+    return tip;
+  }
+  function moveTip(e, z, count){
+    var t = ensureTip();
+    if(!z){ t.className = 'no'; t.textContent = '여기에는 놓을 수 없어요'; }
+    else { t.className = ''; t.textContent = z.def.label; }
+    t.style.transform = 'translate(' + (e.clientX + 16) + 'px,' + (e.clientY + 18) + 'px)';
+    t.style.display = 'block';
+  }
+  function setActive(z){
+    if(active && (!z || active.el !== z.el)) active.el.classList.remove('lb-drop-on');
+    active = z;
+    if(z) z.el.classList.add('lb-drop-on');
+  }
+  function startDrag(){
+    if(!document.body.classList.contains('lb-dragging-files')){
+      document.body.classList.add('lb-dragging-files');
+      ZONES.forEach(function(d){
+        if(d.run && d.sel.indexOf('bd-row') >= 0) return;   // 행 전체는 강조하지 않음(너무 넓음)
+        Array.prototype.forEach.call(document.querySelectorAll(d.sel), function(el){ if(vis(el)) el.classList.add('lb-drop-zone'); });
+      });
+    }
+  }
+  function endDrag(){
+    depth = 0;
+    setActive(null);
+    if(tip) tip.style.display = 'none';
+    document.body.classList.remove('lb-dragging-files');
+    Array.prototype.forEach.call(document.querySelectorAll('.lb-drop-zone'), function(el){
+      el.classList.remove('lb-drop-zone');
+    });
+  }
+
+  document.addEventListener('dragover', function(e){
+    if(!isFileDrag(e)) return;
+    e.preventDefault();            // 파일을 놓아도 브라우저가 사진을 열어 페이지를 떠나지 않게
+    startDrag();
+    var z = zoneAt(e.target);
+    setActive(z);
+    moveTip(e, z);
+    e.dataTransfer.dropEffect = z ? 'copy' : 'none';
+  });
+  document.addEventListener('dragenter', function(e){ if(isFileDrag(e)) depth++; });
+  document.addEventListener('dragleave', function(e){
+    if(!isFileDrag(e)) return;
+    depth = Math.max(0, depth - 1);
+    if(depth === 0) endDrag();              // 창 밖으로 나갔을 때
+  });
+  document.addEventListener('drop', function(e){
+    if(!isFileDrag(e)) return;
+    e.preventDefault();
+    var z = zoneAt(e.target);
+    endDrag();
+    if(!z){ toast('사진은 룩 영역, 대표 사진, 보드 칸에 놓아 주세요', true); return; }
+    var files = imagesOf(e.dataTransfer.files);
+    var skipped = (e.dataTransfer.files.length || 0) - files.length;
+    if(!files.length){ toast('이미지 파일만 올릴 수 있어요', true); return; }
+    if(z.def.single && files.length > 1){ files = files.slice(0, 1); toast('이 칸에는 한 장만 들어가요 · 첫 번째 사진을 넣었어요', true); }
+    else if(skipped > 0){ toast('이미지가 아닌 파일 ' + skipped + '개는 건너뛰었어요', true); }
+    wrapModal();
+    if(z.def.run) z.def.run(z.el, files);
+    else feed(z.def.input(z.el), files);
+  });
+  document.addEventListener('dragend', endDrag);
+
+  function boot(){ wrapModal(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(boot, 500); });
+  else setTimeout(boot, 500);
 })();
 </script></body></html>
